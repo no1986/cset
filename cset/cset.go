@@ -26,6 +26,14 @@ type CPUSet struct {
 	Tasks int
 }
 
+type Proc struct {
+	User   string
+	PID    string
+	PPID   string
+	State  string
+	CMD    string
+}
+
 func NewCPUSetPath() (*CPUSetPath, error) {
 	csp := &CPUSetPath{}
 
