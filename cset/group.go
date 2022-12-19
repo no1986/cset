@@ -6,115 +6,190 @@ import (
 	"strings"
 )
 
-func (csp *CPUSetPath) GroupList() ([]CPUSet, error) {
-	dirs, err := WalkDir(csp.BasePath)
-	ret := []CPUSet{}
+type Group struct {
+	name  string
+	cpus  string
+	mems  string
+	cpux  string
+	memx  string
+	tasks int
+}
+
+func GroupList() ([]Group, error) {
+	ret := []Group{}
+	p, err := GetPath()
+	if err != nil {
+		return ret, err
+	}
+	dirs, err := WalkDir(p.base)
 	if err != nil {
 		return ret, err
 	}
 
 	for _, dir := range dirs {
-		s := new(CPUSet)
-		group := dir[len(csp.BasePath):]
+		group := dir[len(p.base):]
 		if group == "" {
 			group = "/"
 		}
-		s.Group = group
-		cpus, err := csp.Get(group, csp.CPUs)
+
+		g := new(Group)
+		g.name = group
+
+		path := filepath.Join(p.base, group, p.cpus)
+		cpus, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		s.CPUs = cpus
-		mems, err := csp.Get(group, csp.MEMs)
+		if len(cpus) > 0 {
+			g.cpus = cpus[0]
+		}
+
+		path = filepath.Join(p.base, group, p.mems)
+		mems, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		s.MEMs = mems
-		cpuX, err := csp.Get(group, csp.CPUX)
+		if len(mems) > 0 {
+			g.mems = mems[0]
+		}
+
+		path = filepath.Join(p.base, group, p.cpux)
+		cpux, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		s.CPUX = cpuX
-		memX, err := csp.Get(group, csp.MEMX)
+		g.cpux = cpux[0]
+
+		path = filepath.Join(p.base, group, p.memx)
+		memx, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		s.MEMX = memX
-		tasks, _, err := csp.GetTasks(group)
+		g.memx = memx[0]
+
+		path = filepath.Join(p.base, group, p.tasks)
+		tasks, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		s.Tasks = tasks
-		ret = append(ret, *s)
+		g.tasks = len(tasks)
+		ret = append(ret, *g)
 	}
 	return ret, nil
 }
 
-func (csp *CPUSetPath) Create(group string) error {
-	path := filepath.Join(csp.BasePath, group)
-	if f, err := os.Stat(path); !os.IsNotExist(err) && f.IsDir() {
+func CreateGroup(group string) error {
+	p, err := GetPath()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(p.base, group)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		// 既にグループが存在する場合は処理を正常終了
 		return nil
 	}
+
 	if err := os.Mkdir(path, 0777); err != nil {
 		return err
 	}
 
-	t := strings.Split(group, "/")
-	parent := strings.Join(t[:len(t)-1], "/")
+	tmp := strings.Split(group, "/")
+	parent := strings.Join(tmp[:len(tmp)-1], "/")
 
-	cpus, err := csp.Get(parent, csp.CPUs)
+	path = filepath.Join(p.base, parent, p.cpus)
+	cpus, err := GetPathVal(path)
 	if err != nil {
 		return err
 	}
-	err = csp.Set(group, cpus, csp.CPUs)
-	if err != nil {
+	if err = SetCPUs(group, cpus[0]); err != nil {
 		return err
 	}
 
-	mems, err := csp.Get(parent, csp.MEMs)
+	path = filepath.Join(p.base, parent, p.mems)
+	mems, err := GetPathVal(path)
 	if err != nil {
 		return err
 	}
-	err = csp.Set(group, mems, csp.MEMs)
+	if err = SetMEMs(group, mems[0]); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func RenameGroup(old, new string) error {
+	p, err := GetPath()
 	if err != nil {
+		return err
+	}
+	oldpath := filepath.Join(p.base, old)
+	newpath := filepath.Join(p.base, new)
+	if err := os.Rename(oldpath, newpath); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (csp *CPUSetPath) Delete(group string) error {
-	path := filepath.Join(csp.BasePath, group)
+func DeleteGroup(group string) error {
+	p, err := GetPath()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(p.base, group)
 	if err := os.RemoveAll(path); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (csp *CPUSetPath) Rename(oldGroup, newGroup string) error {
-	oldPath := filepath.Join(csp.BasePath, oldGroup)
-	newPath := filepath.Join(csp.BasePath, newGroup)
-	err := os.Rename(oldPath, newPath)
+func SetCPUs(group, val string) error {
+	p, err := GetPath()
 	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(p.base, group, p.cpus)
+	if err = SetPathVal(path, val); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (csp *CPUSetPath) Set(group, str, file string) error {
-	path := filepath.Join(csp.BasePath, group, file)
-	err := Write(path, str)
+func SetMEMs(group, val string) error {
+	p, err := GetPath()
 	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(p.base, group, p.mems)
+	if err = SetPathVal(path, val); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (csp *CPUSetPath) Get(group, file string) (string, error) {
-	path := filepath.Join(csp.BasePath, group, file)
-	cpus, err := Read(path)
+func SetCPUX(group, val string) error {
+	p, err := GetPath()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return cpus, nil
+
+	path := filepath.Join(p.base, group, p.cpux)
+	if err = SetPathVal(path, val); err != nil {
+		return err
+	}
+	return nil
+}
+
+func SetMEMX(group, val string) error {
+	p, err := GetPath()
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(p.base, group, p.memx)
+	if err = SetPathVal(path, val); err != nil {
+		return err
+	}
+	return nil
 }
