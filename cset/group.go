@@ -7,12 +7,12 @@ import (
 )
 
 type Group struct {
-	name  string
-	cpus  string
-	mems  string
-	cpux  string
-	memx  string
-	tasks int
+	Name  string
+	CPUs  string
+	MEMs  string
+	CPUx  string
+	MEMx  string
+	Tasks int
 }
 
 func GroupList() ([]Group, error) {
@@ -33,7 +33,7 @@ func GroupList() ([]Group, error) {
 		}
 
 		g := new(Group)
-		g.name = group
+		g.Name = group
 
 		path := filepath.Join(p.base, group, p.cpus)
 		cpus, err := GetPathVal(path)
@@ -41,7 +41,7 @@ func GroupList() ([]Group, error) {
 			return ret, err
 		}
 		if len(cpus) > 0 {
-			g.cpus = cpus[0]
+			g.CPUs = cpus[0]
 		}
 
 		path = filepath.Join(p.base, group, p.mems)
@@ -50,7 +50,7 @@ func GroupList() ([]Group, error) {
 			return ret, err
 		}
 		if len(mems) > 0 {
-			g.mems = mems[0]
+			g.MEMs = mems[0]
 		}
 
 		path = filepath.Join(p.base, group, p.cpux)
@@ -58,21 +58,21 @@ func GroupList() ([]Group, error) {
 		if err != nil {
 			return ret, err
 		}
-		g.cpux = cpux[0]
+		g.CPUx = cpux[0]
 
 		path = filepath.Join(p.base, group, p.memx)
 		memx, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		g.memx = memx[0]
+		g.MEMx = memx[0]
 
 		path = filepath.Join(p.base, group, p.tasks)
 		tasks, err := GetPathVal(path)
 		if err != nil {
 			return ret, err
 		}
-		g.tasks = len(tasks)
+		g.Tasks = len(tasks)
 		ret = append(ret, *g)
 	}
 	return ret, nil

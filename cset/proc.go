@@ -9,14 +9,16 @@ import (
 )
 
 type Proc struct {
-	user  string
-	pid   string
-	ppid  string
-	state string
-	cmd   string
-	exe   string
-	cpus  string
-	mems  string
+	User   string
+	Pid    string
+	PPid   string
+	State  string
+	CMD    string
+	Exe    string
+	CPUs   string
+	MEMs   string
+	bound  bool
+	kernel bool
 }
 
 func ProcList(group string) ([]Proc, error) {
@@ -28,6 +30,15 @@ func ProcList(group string) ([]Proc, error) {
 
 	path := filepath.Join(p.base, group, "tasks")
 	tasks, err := GetPathVal(path)
+	if err != nil {
+		return ret, err
+	}
+
+	root_cpus, err := GetPathVal(filepath.Join(p.base, p.cpus))
+	if err != nil {
+		return ret, err
+	}
+	root_mems, err := GetPathVal(filepath.Join(p.base, p.mems))
 	if err != nil {
 		return ret, err
 	}
@@ -58,29 +69,39 @@ func ProcList(group string) ([]Proc, error) {
 			statusd[key] = val
 		}
 
-		proc.pid = pid
+		proc.Pid = pid
 		path := filepath.Join("/proc", pid, "exe")
 		info, err := os.Lstat(path)
 		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-			link, err := os.Readlink(path)
-			if err == nil {
-				proc.exe = link
+			if link, err := os.Readlink(path); err == nil {
+				proc.Exe = link
+				proc.kernel = false
+			} else {
+				proc.kernel = true
 			}
-		}
-		if len(cmd) > 0 {
-			proc.cmd = strings.ReplaceAll(cmd[0], string([]byte{0}), " ")
 		} else {
-			proc.cmd = fmt.Sprintf("[%s]", statusd["Name"])
+			proc.kernel = true
 		}
-		proc.ppid = statusd["PPid"]
-		proc.state = statusd["State"]
+
+		if len(cmd) > 0 {
+			proc.CMD = strings.ReplaceAll(cmd[0], string([]byte{0}), " ")
+		} else {
+			proc.CMD = fmt.Sprintf("[%s]", statusd["Name"])
+		}
+		proc.PPid = statusd["PPid"]
+		proc.State = statusd["State"]
 		u, err := user.LookupId(statusd["Uid"])
 		if err != nil {
 			return ret, err
 		}
-		proc.user = u.Username
-		proc.cpus = statusd["Cpus_allowed_list"]
-		proc.mems = statusd["Mems_allowed_list"]
+		proc.User = u.Username
+		proc.CPUs = statusd["Cpus_allowed_list"]
+		proc.MEMs = statusd["Mems_allowed_list"]
+		if proc.CPUs == root_cpus[0] && proc.MEMs == root_mems[0] {
+			proc.bound = false
+		} else {
+			proc.bound = true
+		}
 
 		ret = append(ret, *proc)
 	}
